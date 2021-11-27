@@ -5,6 +5,9 @@ import seaborn as sns
 
 sns.set()
 
+#TODO
+# plot silhouette analysis
+
 
 def eucl_sq_dist(point1, point2):
     """
@@ -105,6 +108,66 @@ class KMeans:
                                
         return inertia
     
+    def compute_silhouette(self, data):
+        """
+        Computes the silhouette score for each point,
+        defined as
+        
+        s = (b - a) / min(a, b)
+        
+        where a is the mean distance between a point
+        and the others in the same cluster
+        and b is the minimum distance among 
+        the mean distances between a point 
+        and all points in another cluster
+        
+        Finally, it returns the average score
+        over all points
+        """
+        
+        if self.K == 1:
+            return 1
+        
+        s = np.empty(len(data))
+        
+        for idx, point in enumerate(data.values):
+            
+            # all points in the same cluster of 'point'
+            cluster_points = data.iloc[self.labels == self.labels[idx]]
+            
+            # if 'point' is the only point in its cluster
+            # it has a score of 0
+            if len(cluster_points) == 1:
+                s[idx] = 0
+                continue
+            
+            # mean distance between 'point' and all the others
+            # in the same cluster
+            a = np.sum([np.sqrt(eucl_sq_dist(point, cp)) 
+                       for cp in cluster_points.drop(idx).values])
+            
+            a = a / (len(cluster_points) - 1)
+            
+            # mean distances of 'point' to the points
+            # of each other cluster
+            b = []            
+            for label in filter(lambda k: k != self.labels[idx], range(self.K)):
+            
+                other_points = data.iloc[self.labels == label]
+                
+                b_k = np.sum([np.sqrt(eucl_sq_dist(point, op))
+                                 for op in other_points.values])
+                
+                b.append(b_k / len(other_points))
+                
+            b_min = np.min(b)
+            
+            # silhouette score for 'point' 
+            s[idx] = (b_min - a) / (np.max([a, b_min]))
+            
+
+        return np.mean(s)
+    
 
     def fit(self, data):
         """
@@ -166,8 +229,8 @@ def elbow(data, K_list, plot = False):
         plot_elbow(K_list, inertia)
         
     return inertia
-            
-    
+
+
 def plot_elbow(K_list, inertia):
     """
     Creates a plot of the inertias obtained
@@ -185,3 +248,41 @@ def plot_elbow(K_list, inertia):
     plt.vlines(x = K_list, 
                ymin = [0]*len(K_list), ymax = inertia,
                linestyles = "dotted")
+
+
+def silhouette(data, K_list, plot = False):
+    """
+    Runs KMeans for different numbers of clusters
+    and computes the inertia (SSE) for each
+    """
+    
+    silh = []
+    
+    for k in K_list:
+        kmeans = KMeans(k)
+        kmeans.fit(data)
+        silh.append(kmeans.compute_silhouette(data))
+        
+    if plot:
+        plot_silhouette(K_list, silh)
+        
+    return silh
+
+
+def plot_silhouette(K_list, silh):
+    """
+    Creates a plot of the inertias obtained
+    for different number of clusters
+    """
+    
+    plt.title("Average Silhouette")
+    plt.xlabel("Number of clusters")
+    plt.ylabel("Silhouette")
+    
+    plt.plot(K_list, silh, marker = "o")
+    
+    plt.xticks(ticks = K_list, labels = K_list)
+    
+    # plt.vlines(x = K_list, 
+    #            ymin = [0]*len(K_list), ymax = silh,
+    #            linestyles = "dotted")
