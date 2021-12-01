@@ -259,17 +259,18 @@ class KMeans:
              show_centroids = True)
     
 
-    def fit(self, data):
+    def fit(self, data, max_iter = 100):
         """
         When called this method starts the KMeans algorithm,
-        which will stop when convergence has been reached
+        which will stop when either convergence or the
+        maximum number of iterations have been reached
         """
 
         # the initial centroids are chosen randomly
         self.centroids = self.rand_centroids(data)
         self.labels = self.assign_labels(data)
         
-        while True:
+        for _ in range(max_iter):
 
             new_centroids = self.compute_centroids(data)
 
