@@ -10,24 +10,6 @@ CLUSTER_PALETTE = "muted"
 # TODO 
 # xlabel, ylabel in model.display
 
-def eucl_sq_dist(point1, point2):
-    """
-    Computes the squared Euclidean distance
-    between two points
-    
-    Arguments
-        point1, point2 : (list)
-        
-    Returns
-        (float) squared Euclidean distance
-    """
-    
-    point1 = np.array(point1)
-    point2 = np.array(point2)
-    
-    return np.sum(np.square(point1 - point2))
-
-
 class KMeans:
     """
     This class implements the KMeans algorithm
@@ -36,6 +18,7 @@ class KMeans:
     
     def __init__(self, K):
         self.K = K
+        self.n_iter = 0
         
 
     def rand_centroids(self, data):
@@ -81,16 +64,6 @@ class KMeans:
             true_centroids.append(np.sum(points) / len(points))
             
         return true_centroids
-      
-
-    def has_converged(self, new_centroids):
-        """
-        Returns True if the algorithm has converged,
-        i.e. if in the next iteration of the algorithm
-        the centroids haven't changed
-        """
-        
-        return np.array_equiv(self.centroids, new_centroids)
     
     
     def compute_inertia(self, data):
@@ -163,7 +136,7 @@ class KMeans:
         return b
 
 
-    def silhouette(self, data, plot = False):
+    def silhouette(self, data, plot = False, progress = False):
         """
         Computes the silhouette score for each point,
         defined as
@@ -183,6 +156,9 @@ class KMeans:
         s = np.empty(len(data))
         
         for idx, point in enumerate(data.values):
+            
+            if progress:
+                print(idx, end = "\r")
             
             # all points in the same cluster of 'point'
             cluster_points = data.iloc[self.labels == self.labels[idx]]
@@ -204,7 +180,7 @@ class KMeans:
         return s
     
     
-    def plot_silhouette(self, data, silh):
+    def plot_silhouette(self, data, silh, scatter = False):
         """
         Plots the silhouette analysis for 
         a certain model, in addition to a scatterplot
@@ -255,11 +231,37 @@ class KMeans:
         plt.show()
         
         # scatterplot with the clusters
-        self.display(data.iloc[:,0], data.iloc[:,1],
-             show_centroids = True)
+        if scatter:
+            self.display(data.iloc[:,0], data.iloc[:,1],
+                         show_centroids = True)
     
 
-    def fit(self, data, max_iter = 100):
+#    def has_converged(self, new_centroids):
+#        """
+#        Returns True if the algorithm has converged,
+#        i.e. if in the next iteration of the algorithm
+#        the centroids haven't changed
+#        """
+#        
+#        return np.array_equiv(self.centroids, new_centroids)
+
+    
+    def has_converged(self, new_centroids, threshold):
+        """
+        Returns True if the algorithm has converged,
+        i.e. if the squared Euclidean distance between
+        the current and the proposed centroids is less
+        than the threshold
+        """
+        
+        dist = [eucl_sq_dist(self.centroids[idx], new_centroids[idx]) < threshold 
+                for idx in range(self.K)]
+        
+        # the min will be True if all distances are below the threshold
+        return np.min(dist)
+    
+    
+    def fit(self, data, max_iter = 300, threshold = 0.005):
         """
         When called this method starts the KMeans algorithm,
         which will stop when either convergence or the
@@ -270,16 +272,14 @@ class KMeans:
         self.centroids = self.rand_centroids(data)
         self.labels = self.assign_labels(data)
         
-        for _ in range(max_iter):
+        for i in range(max_iter):
 
             new_centroids = self.compute_centroids(data)
 
-            if not self.has_converged(new_centroids):
+            if not self.has_converged(new_centroids, threshold):
+                self.n_iter += 1
                 self.centroids = new_centroids  
                 self.labels = self.assign_labels(data)
-            else:
-                self.inertia = self.compute_inertia(data)     
-                break
                 
 
     def display(self, x, y, show_centroids = False):
@@ -296,6 +296,12 @@ class KMeans:
                     color = [sns.color_palette(CLUSTER_PALETTE)[label]
                              for label in self.labels])
         
+        try:    
+            plt.xlabel(x.name)
+            plt.ylabel(y.name)   
+        except AttributeError:
+            pass
+        
         if show_centroids:
             
             x_c = np.transpose(self.centroids)[0]
@@ -309,7 +315,7 @@ class KMeans:
         plt.show()
 
 
-def elbow(data, K_list, plot = False):
+def elbow(data, K_list, plot = False, progress = False):
     """
     Runs KMeans for different numbers of clusters
     and computes the inertia (SSE) for each
@@ -318,9 +324,13 @@ def elbow(data, K_list, plot = False):
     inertia = []
     
     for k in K_list:
+        
+        if progress:
+            print(f"Fitting data with K = {k} clusters", end = "\r")
+            
         kmeans = KMeans(k)
         kmeans.fit(data)
-        inertia.append(kmeans.inertia)
+        inertia.append(kmeans.compute_inertia(data))
         
     if plot:
         plot_elbow(K_list, inertia)
@@ -344,9 +354,9 @@ def plot_elbow(K_list, inertia):
     
     plt.xticks(ticks = K_list, labels = K_list)
     
-    plt.vlines(x = K_list, 
-               ymin = [0]*len(K_list), ymax = inertia,
-               linestyles = "dotted")
+    # plt.vlines(x = K_list, 
+    #            ymin = [np.min(inertia)]*len(K_list), ymax = inertia,
+    #            linestyles = "dotted")
     
     plt.show()
 
@@ -354,7 +364,7 @@ def plot_elbow(K_list, inertia):
 def avg_silhouette(data, K_list, plot = False):
     """
     Runs KMeans for different numbers of clusters
-    and computes the inertia (SSE) for each
+    and computes the silhouette score for each
     """
     
     silh = []
@@ -387,3 +397,21 @@ def plot_avg_silhouette(K_list, silh):
     plt.xticks(ticks = K_list, labels = K_list)
     
     plt.show()
+
+
+def eucl_sq_dist(point1, point2):
+    """
+    Computes the squared Euclidean distance
+    between two points
+    
+    Arguments
+        point1, point2 : (list)
+        
+    Returns
+        (float) squared Euclidean distance
+    """
+    
+    point1 = np.array(point1)
+    point2 = np.array(point2)
+    
+    return np.sum(np.square(point1 - point2))
