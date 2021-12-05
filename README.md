@@ -25,4 +25,4 @@ In this github repository we stored the files written for the third Homework of 
          3. Algorithmic question
 
 2. __`kmeans.py`__:
-> Python script in which we have written the useful functions to solve the kmeans question.
+   > Python script in which we have written the useful functions to solve the kmeans question.
